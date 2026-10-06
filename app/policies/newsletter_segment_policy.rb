@@ -1,0 +1,1 @@
+class NewsletterSegmentPolicy < ApplicationPolicy; end

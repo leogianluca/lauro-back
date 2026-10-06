@@ -1,0 +1,24 @@
+test:
+  service: Disk
+  root: <%= Rails.root.join("tmp/storage") %>
+
+local:
+  service: Disk
+  root: <%= Rails.root.join("storage") %>
+
+amazon:
+  service: S3
+  region: <%= ENV.fetch("AWS_REGION", "us-east-1") %>
+  bucket: <%= ENV["AWS_S3_BUCKET_#{Rails.env.upcase}"].presence || ENV["AWS_S3_BUCKET"] %>
+
+# Remember not to checkin your GCS keyfile to a repository
+# google:
+#   service: GCS
+#   project: your_project
+#   credentials: <%= Rails.root.join("path/to/gcs.keyfile") %>
+#   bucket: your_own_bucket-<%= Rails.env %>
+
+# mirror:
+#   service: Mirror
+#   primary: local
+#   mirrors: [ amazon, google, microsoft ]

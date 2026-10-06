@@ -1,0 +1,427 @@
+---
+openapi: 3.0.1
+info:
+  title: Lauro Project API V1
+  version: v1
+paths:
+  "/api/v1/me":
+    get:
+      summary: Returns the authenticated user profile
+      tags:
+      - Authentication
+      security:
+      - bearerAuth: []
+      responses:
+        '401':
+          description: authentication required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+  "/api/v1/investment_cards":
+    get:
+      summary: Lists public investment cards
+      tags:
+      - Investment Cards
+      parameters:
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: strategy
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: asset_type
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: city
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: state
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: region
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: expert_curated
+        in: query
+        required: false
+        schema:
+          type: boolean
+      - name: featured
+        in: query
+        required: false
+        schema:
+          type: boolean
+      - name: min_price_cents
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: max_price_cents
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [recent, oldest, price_asc, price_desc, featured]
+      - name: ids
+        in: query
+        required: false
+        description: Comma-separated public card IDs, limited to 100 IDs. Used by the favorites view.
+        schema:
+          type: string
+      - name: locale
+        in: query
+        required: false
+        description: Requested editorial locale; translations are returned only when published and complete.
+        schema:
+          type: string
+          enum: [pt-BR, en, es]
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: per_page
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: cards returned
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                - meta
+                - errors
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  meta:
+                    type: object
+                  errors:
+                    type: array
+  "/api/v1/newsletter_editions":
+    get:
+      summary: Lists published newsletter editions
+      tags:
+      - Newsletter
+      parameters:
+      - name: locale
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [pt-BR, en, es]
+      responses:
+        '200':
+          description: editions returned
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                - meta
+                - errors
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  meta:
+                    type: object
+                  errors:
+                    type: array
+  "/api/v1/market_reports":
+    get:
+      summary: Lists published market reports
+      tags:
+      - Market Reports
+      parameters:
+      - name: locale
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [pt-BR, en, es]
+      responses:
+        '200':
+          description: reports returned
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                - meta
+                - errors
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  meta:
+                    type: object
+                  errors:
+                    type: array
+  "/api/v1/content_pages":
+    get:
+      summary: Lists published institutional pages
+      tags:
+      - Content
+      parameters:
+      - name: locale
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [pt-BR, en, es]
+      responses:
+        '200':
+          description: pages returned
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                - meta
+                - errors
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  meta:
+                    type: object
+                  errors:
+                    type: array
+  "/api/v1/site_settings":
+    get:
+      summary: Returns public frontend settings
+      tags:
+      - Settings
+      responses:
+        '200':
+          description: settings returned
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                - meta
+                - errors
+                properties:
+                  data:
+                    type: object
+                  meta:
+                    type: object
+                  errors:
+                    type: array
+  "/api/v1/leads":
+    post:
+      summary: Creates a contact lead
+      tags:
+      - Leads
+      parameters: []
+      responses:
+        '201':
+          description: lead created
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                - meta
+                - errors
+                properties:
+                  data:
+                    type: object
+                  meta:
+                    type: object
+                  errors:
+                    type: array
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - lead
+              - consent
+              properties:
+                lead:
+                  type: object
+                  required:
+                  - name
+                  - email
+                  properties:
+                    name:
+                      type: string
+                    email:
+                      type: string
+                      format: email
+                    phone:
+                      type: string
+                    message:
+                      type: string
+                    source:
+                      type: string
+        required: true
+  "/api/v1/newsletter_subscribers":
+    post:
+      summary: Subscribes an email to the newsletter
+      tags:
+      - Newsletter
+      parameters: []
+      responses:
+        '201':
+          description: subscriber created
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                - meta
+                - errors
+                properties:
+                  data:
+                    type: object
+                  meta:
+                    type: object
+                  errors:
+                    type: array
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - subscriber
+              - consent
+              properties:
+                subscriber:
+                  type: object
+                  required:
+                  - email
+                  properties:
+                    email:
+                      type: string
+                      format: email
+                    source:
+                      type: string
+        required: true
+  "/api/v1/newsletter_subscribers/{id}":
+    delete:
+      summary: Unsubscribes a signed newsletter token
+      tags:
+      - Newsletter
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: subscriber unsubscribed
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - data
+                - meta
+                - errors
+                properties:
+                  data:
+                    type: object
+                  meta:
+                    type: object
+                  errors:
+                    type: array
+  "/api/v1/newsletter_webhooks/events":
+    post:
+      summary: Receives signed delivery events from the configured email provider
+      tags:
+      - Newsletter
+      parameters:
+      - name: X-Newsletter-Signature
+        in: header
+        required: true
+        schema:
+          type: string
+          description: HMAC-SHA256 of the raw request body
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - event
+              properties:
+                event:
+                  type: string
+                  enum: [delivered, bounce, complaint, unsubscribe]
+                event_id:
+                  type: string
+                newsletter_delivery_id:
+                  type: string
+                newsletter_edition_id:
+                  type: string
+                recipient_email:
+                  type: string
+                  format: email
+      responses:
+        '202':
+          description: event accepted
+        '401':
+          description: invalid signature
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+servers:
+- url: "{protocol}://{defaultHost}"
+  variables:
+    protocol:
+      default: http
+    defaultHost:
+      default: localhost:3000

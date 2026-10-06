@@ -1,0 +1,471 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Cost-conscious production foundation for Lauro: private PostgreSQL, one small
+  Rails host managed through Systems Manager, private S3 origins, and CloudFront.
+
+Parameters:
+  ImageTag:
+    Type: String
+    Description: Immutable ECR tag for the Rails image to deploy.
+    AllowedPattern: '[A-Za-z0-9][A-Za-z0-9_.-]{0,127}'
+  Ec2InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues: [t3.small]
+    Description: 2 GiB low-traffic baseline; increase vertically when metrics justify it.
+  DatabaseInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+    AllowedValues: [db.t4g.micro]
+    Description: Single-AZ PostgreSQL baseline; increase vertically when metrics justify it.
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.48.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - { Key: Name, Value: lauro-prod-vpc }
+        - { Key: Project, Value: lauro }
+        - { Key: Environment, Value: production }
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - { Key: Name, Value: lauro-prod-igw }
+        - { Key: Project, Value: lauro }
+
+  VpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.48.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - { Key: Name, Value: lauro-prod-public-a }
+        - { Key: Project, Value: lauro }
+
+  DatabaseSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.48.11.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - { Key: Name, Value: lauro-prod-db-b }
+        - { Key: Project, Value: lauro }
+
+  DatabaseSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.48.12.0/24
+      AvailabilityZone: !Select [2, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - { Key: Name, Value: lauro-prod-db-c }
+        - { Key: Project, Value: lauro }
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: lauro-prod-public-rt }
+        - { Key: Project, Value: lauro }
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VpcGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  RailsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTP from CloudFront origin-facing servers only; no SSH ingress.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - Description: CloudFront origin-facing managed prefix list.
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourcePrefixListId: pl-3b927c52
+      Tags:
+        - { Key: Name, Value: lauro-prod-rails-sg }
+        - { Key: Project, Value: lauro }
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: PostgreSQL reachable only from the Rails instance.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - Description: Rails application connection.
+          IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref RailsSecurityGroup
+      Tags:
+        - { Key: Name, Value: lauro-prod-db-sg }
+        - { Key: Project, Value: lauro }
+
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnets for Lauro production PostgreSQL.
+      SubnetIds: [!Ref DatabaseSubnetA, !Ref DatabaseSubnetB]
+      Tags:
+        - { Key: Name, Value: lauro-prod-db-subnets }
+        - { Key: Project, Value: lauro }
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: lauro-prod-postgres
+      Engine: postgres
+      DBInstanceClass: !Ref DatabaseInstanceClass
+      DBName: lauro_production
+      MasterUsername: lauro_db_owner
+      ManageMasterUserPassword: true
+      AllocatedStorage: '20'
+      StorageType: gp3
+      StorageEncrypted: true
+      PubliclyAccessible: false
+      MultiAZ: false
+      BackupRetentionPeriod: 7
+      AutoMinorVersionUpgrade: true
+      CopyTagsToSnapshot: true
+      DeletionProtection: true
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      VPCSecurityGroups: [!GetAtt DatabaseSecurityGroup.GroupId]
+      Tags:
+        - { Key: Name, Value: lauro-prod-postgres }
+        - { Key: Project, Value: lauro }
+        - { Key: Environment, Value: production }
+
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub lauro-prod-media-${AWS::AccountId}-${AWS::Region}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: abort-incomplete-multipart-uploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      Tags:
+        - { Key: Project, Value: lauro }
+        - { Key: Environment, Value: production }
+
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub lauro-prod-frontend-${AWS::AccountId}-${AWS::Region}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - { Key: Project, Value: lauro }
+        - { Key: Environment, Value: production }
+
+  FrontendOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: lauro-prod-frontend-oac
+        Description: Private S3 access for the Lauro frontend distribution.
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  EcrRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: lauro/rails-production
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      LifecyclePolicy:
+        LifecyclePolicyText: >-
+          {"rules":[{"rulePriority":1,"description":"Keep the latest five release images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":5},"action":{"type":"expire"}}]}
+      Tags:
+        - { Key: Project, Value: lauro }
+        - { Key: Environment, Value: production }
+
+  RailsInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: LauroRuntimeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadReleaseImage
+                Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Sid: PullReleaseImage
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource: !GetAtt EcrRepository.Arn
+              - Sid: ReadRailsParameters
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/lauro/prod/*
+              - Sid: DecryptRailsParameters
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub ssm.${AWS::Region}.amazonaws.com
+                  ArnLike:
+                    kms:EncryptionContext:PARAMETER_ARN: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/lauro/prod/*
+              - Sid: ReadDatabaseMasterSecret
+                Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !GetAtt Database.MasterUserSecret.SecretArn
+              - Sid: ListActiveStorageBucket
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt MediaBucket.Arn
+              - Sid: ActiveStorageObjects
+                Effect: Allow
+                Action: [s3:AbortMultipartUpload, s3:DeleteObject, s3:GetObject, s3:PutObject]
+                Resource: !Sub ${MediaBucket.Arn}/*
+      Tags:
+        - { Key: Project, Value: lauro }
+        - { Key: Environment, Value: production }
+
+  RailsInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref RailsInstanceRole]
+
+  RailsLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        CreditSpecification:
+          CpuCredits: standard
+
+  RailsInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}'
+      InstanceType: !Ref Ec2InstanceType
+      IamInstanceProfile: !Ref RailsInstanceProfile
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds: [!Ref RailsSecurityGroup]
+      LaunchTemplate:
+        LaunchTemplateId: !Ref RailsLaunchTemplate
+        Version: !GetAtt RailsLaunchTemplate.LatestVersionNumber
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 2
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 30
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          dnf install -y docker
+          install -d -m 0750 /opt/lauro
+          cat > /etc/docker/daemon.json <<'DOCKER'
+          {"log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"3"}}
+          DOCKER
+          systemctl enable --now docker
+          systemctl restart docker
+          systemctl enable --now amazon-ssm-agent
+          printf '%s\n' 'Lauro production host bootstrap complete.' > /opt/lauro/bootstrap-status
+          chmod 0640 /opt/lauro/bootstrap-status
+      Tags:
+        - { Key: Name, Value: lauro-prod-rails-01 }
+        - { Key: Project, Value: lauro }
+        - { Key: Environment, Value: production }
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: RailsInstance
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: Lauro production frontend and Rails API.
+        DefaultRootObject: index.html
+        PriceClass: PriceClass_100
+        HttpVersion: http2and3
+        Origins:
+          - Id: FrontendS3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !Ref FrontendOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+          - Id: RailsApiOrigin
+            DomainName: !GetAtt RailsInstance.PublicDnsName
+            CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginProtocolPolicy: http-only
+              OriginSSLProtocols: [TLSv1.2]
+              OriginReadTimeout: 60
+              OriginKeepaliveTimeout: 30
+        DefaultCacheBehavior:
+          TargetOriginId: FrontendS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: RailsApiOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          - PathPattern: /up
+            TargetOriginId: RailsApiOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          - PathPattern: /rails/active_storage/*
+            TargetOriginId: RailsApiOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+          MinimumProtocolVersion: TLSv1.2_2021
+        Restrictions:
+          GeoRestriction:
+            RestrictionType: none
+        IPV6Enabled: true
+      Tags:
+        - { Key: Project, Value: lauro }
+        - { Key: Environment, Value: production }
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontReadOnly
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${FrontendBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}
+
+Outputs:
+  SiteUrl:
+    Description: HTTPS public URL using the CloudFront-provided hostname; no domain required.
+    Value: !Sub https://${CloudFrontDistribution.DomainName}
+  DistributionId:
+    Value: !Ref CloudFrontDistribution
+  ApiOriginDns:
+    Description: CloudFront-to-Rails origin hostname. Keep the EC2 instance running to retain its public address.
+    Value: !GetAtt RailsInstance.PublicDnsName
+  RailsInstanceId:
+    Value: !Ref RailsInstance
+  RailsImageRepository:
+    Value: !GetAtt EcrRepository.RepositoryUri
+  MediaBucketName:
+    Value: !Ref MediaBucket
+  FrontendBucketName:
+    Value: !Ref FrontendBucket
+  DatabaseEndpoint:
+    Value: !GetAtt Database.Endpoint.Address
+  DatabaseMasterSecretArn:
+    Value: !GetAtt Database.MasterUserSecret.SecretArn
