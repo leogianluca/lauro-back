@@ -199,6 +199,7 @@ class InvestmentCard < ApplicationRecord
       errors.add(field, "must be an object") unless public_send(field).is_a?(Hash)
     end
     errors.add(:property_details, "must be an object") unless property_details.is_a?(Hash)
+    errors.add(:business_details, "must be an object") unless business_details.is_a?(Hash)
   end
 
   def taxonomy_terms_match_expected_kinds

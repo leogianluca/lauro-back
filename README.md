@@ -109,6 +109,14 @@ Production preflight:
 RAILS_ENV=production bin/rails production:check
 ```
 
+The production EC2 host runs `lauro-db-credentials-refresh.timer` every five minutes.
+It calls `script/refresh_production_db_credentials.py` to compare the Docker database
+URLs with the current RDS managed secret. When RDS rotates the password, the script
+checks the new credential, then recreates `lauro-web` and `lauro-jobs` with updated
+environment variables. The service and timer definitions are in `infra/aws/`.
+Install the script and units again when replacing the EC2 instance or changing the
+container deployment layout.
+
 API docs:
 
 ```text

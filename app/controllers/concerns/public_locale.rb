@@ -13,6 +13,10 @@ module PublicLocale
   PUBLIC_PROPERTY_DETAIL_FIELDS = %i[
     property_style lp_per_sqft can_be_leased new_construction pool minimum_lease_period
     heated_area garage pets total_area garage_spaces special_sale total_acreage subdivision
+    subtype subtype_label strategy_badge feature_badge asset_badge term_label
+  ].freeze
+  PUBLIC_BUSINESS_DETAIL_FIELDS = %i[
+    badge segment strategy_badge feature_badge fact_one fact_two fact_three fact_four visa_program
   ].freeze
 
   private
@@ -50,11 +54,27 @@ module PublicLocale
       :investment_broker_id, :investment_company_id, :investment_location_id,
       :category_taxonomy_id, :asset_type_taxonomy_id, :strategy_taxonomy_id,
       :market_taxonomy_id, :seo_title, :seo_description, :admin_url, :source_name,
-      :business_details, :due_diligence, :financing
+      :due_diligence
     )
+    if record.is_a?(InvestmentCard)
+      unless record.market_status == "off_market"
+        safe_payload = safe_payload.merge(payload.deep_symbolize_keys.slice(:address_line1, :address_line2, :zip_code))
+      end
+      if safe_payload[:business_details].is_a?(Hash)
+        safe_payload[:business_details] = safe_payload[:business_details].slice(*PUBLIC_BUSINESS_DETAIL_FIELDS)
+      end
+      if safe_payload[:financing].is_a?(Hash)
+        safe_payload[:financing] = safe_payload[:financing].slice(:type)
+      end
+    else
+      safe_payload = safe_payload.except(:business_details, :financing)
+    end
     safe_payload = safe_payload.except(:investment_broker, :investment_company)
     if safe_payload[:investment_location].is_a?(Hash)
       safe_payload[:investment_location] = safe_payload[:investment_location].except(:id)
+      if record.is_a?(InvestmentCard) && record.market_status == "off_market"
+        safe_payload[:investment_location] = safe_payload[:investment_location].except(:name, :address_line1, :address_line2, :zip_code)
+      end
     end
     if safe_payload[:taxonomies].is_a?(Hash)
       safe_payload[:taxonomies] = safe_payload[:taxonomies].transform_values do |taxonomy|
