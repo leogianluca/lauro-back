@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_27_000100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -180,7 +180,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_000100) do
     t.string "address_line1"
     t.string "address_line2"
     t.string "alt_text"
-    t.integer "annual_profit_cents"
+    t.bigint "annual_profit_cents"
     t.string "asset_type"
     t.uuid "asset_type_taxonomy_id"
     t.text "assumptions"
@@ -197,17 +197,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_000100) do
     t.string "country", default: "US", null: false
     t.datetime "created_at", null: false
     t.uuid "curated_by_id"
-    t.integer "current_income_cents"
+    t.bigint "current_income_cents"
     t.text "description"
     t.datetime "discarded_at"
     t.text "disclaimer"
-    t.integer "down_payment_cents"
+    t.bigint "down_payment_cents"
     t.decimal "down_payment_percent", precision: 6, scale: 3
     t.jsonb "due_diligence", default: {}, null: false
-    t.integer "ebitda_annual_cents"
+    t.bigint "ebitda_annual_cents"
     t.decimal "ebitda_margin", precision: 6, scale: 3
-    t.integer "equity_generated_max_cents"
-    t.integer "equity_generated_min_cents"
+    t.bigint "equity_generated_max_cents"
+    t.bigint "equity_generated_min_cents"
     t.integer "estimated_months"
     t.decimal "estimated_roi_max", precision: 7, scale: 3
     t.decimal "estimated_roi_min", precision: 7, scale: 3
@@ -226,8 +226,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_000100) do
     t.uuid "investment_broker_id"
     t.uuid "investment_company_id"
     t.uuid "investment_location_id"
-    t.integer "investment_max_cents"
-    t.integer "investment_min_cents"
+    t.bigint "investment_max_cents"
+    t.bigint "investment_min_cents"
     t.text "investment_profile"
     t.text "investment_thesis"
     t.decimal "investor_participation", precision: 6, scale: 3
@@ -238,16 +238,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_000100) do
     t.string "market_status", default: "active", null: false
     t.uuid "market_taxonomy_id"
     t.jsonb "metadata", default: {}, null: false
-    t.integer "noi_current_cents"
-    t.integer "noi_projected_cents"
+    t.bigint "noi_current_cents"
+    t.bigint "noi_projected_cents"
     t.decimal "occupancy_rate", precision: 6, scale: 3
     t.string "operating_model"
     t.string "owner_involvement"
-    t.integer "owner_salary_annual_cents"
+    t.bigint "owner_salary_annual_cents"
     t.decimal "owner_time_in_business_years", precision: 6, scale: 2
-    t.integer "price_cents"
+    t.bigint "price_cents"
     t.string "price_currency", default: "USD", null: false
-    t.integer "projected_income_cents"
+    t.bigint "projected_income_cents"
     t.jsonb "property_details", default: {}, null: false
     t.datetime "published_at"
     t.boolean "quota_available", default: false, null: false
@@ -626,6 +626,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_000100) do
     t.index ["default_template"], name: "idx_newsletter_templates_one_default", unique: true, where: "((default_template = true) AND (discarded_at IS NULL))"
     t.index ["discarded_at"], name: "index_newsletter_templates_on_discarded_at"
     t.index ["status"], name: "index_newsletter_templates_on_status"
+  end
+
+  create_table "site_analytics_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "device_type"
+    t.string "event_type", null: false
+    t.datetime "occurred_at", null: false
+    t.string "path", null: false
+    t.string "referrer_host"
+    t.string "session_id", null: false
+    t.string "target_path"
+    t.string "utm_campaign"
+    t.string "utm_medium"
+    t.string "utm_source"
+    t.index ["event_type", "occurred_at", "path"], name: "index_site_analytics_events_for_pages"
+    t.index ["occurred_at"], name: "index_site_analytics_events_on_occurred_at"
+    t.index ["session_id", "occurred_at"], name: "index_site_analytics_events_for_sessions"
   end
 
   create_table "site_settings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

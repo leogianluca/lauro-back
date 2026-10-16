@@ -66,3 +66,17 @@ No Kamal, o processo `web` executa o Puma e o processo `job` executa `bin/jobs`.
 O scheduler do Solid Queue é iniciado pelo próprio worker; não habilite
 `SOLID_QUEUE_IN_PUMA` em produção. O health check de fila valida a conexão do
  banco dedicado quando o adapter Solid Queue está ativo.
+
+## Tráfego do site
+
+O frontend registra visitas das páginas públicas e cliques em links internos em
+`POST /api/v1/site_analytics_events`. O relatório privado fica em
+`GET /api/v1/admin/site_analytics` e na tela `/app/site-analytics`, acessível
+somente a administradores. Não há dependência de Google Analytics ou Meta Pixel.
+
+Os eventos guardam caminho da página sem query string, ID temporário da sessão
+da aba, domínio de referência, parâmetros UTM e tipo de dispositivo. Não guarde
+IP, e-mail ou conteúdo dos formulários nessa tabela. O navegador respeita os
+sinais Do Not Track e Global Privacy Control. O scheduler remove eventos com
+mais de 90 dias; mantenha o processo `job` ativo em produção para executar a
+limpeza. Publique a migration do backend antes do frontend que envia eventos.

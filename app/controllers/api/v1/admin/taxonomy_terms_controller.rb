@@ -35,6 +35,9 @@ module Api
         def destroy
           term = TaxonomyTerm.kept.find(params[:id])
           authorize term
+          if term.used?
+            return render_error(code: "taxonomy_term_in_use", message: "Esta opção já está em uso. Desative-a para impedir novas escolhas.", status: :unprocessable_content)
+          end
           term.discard!
           audit!("taxonomy_term.archived", term)
           render_success(data: nil)

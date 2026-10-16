@@ -223,7 +223,21 @@ RSpec.describe "Investment cards", type: :request do
       expect(json_response.dig("data", "slug")).to eq("published-card")
     end
 
-    it "removes internal fields and admin document URLs from the public detail payload" do
+    it "exposes selected commercial card fields without leaking internal notes" do
+      card = create(:investment_card, :published, category: "commercial", asset_type: "office",
+        property_details: { unit_count: 4, price_per_sqft: 315.5, stabilized_yield_on_cost: 8.125,
+          internal_inspection_note: "staff only" })
+
+      get "/api/v1/investment_cards/#{card.slug}"
+
+      expect(response).to have_http_status(:ok)
+      expect(json_response.dig("data", "property_details")).to include(
+        "unit_count" => 4, "price_per_sqft" => 315.5, "stabilized_yield_on_cost" => 8.125
+      )
+      expect(json_response.dig("data", "property_details")).not_to have_key("internal_inspection_note")
+    end
+
+    it "keeps a marketable address while removing internal fields and admin document URLs" do
       card = create(
         :investment_card,
         :published,
@@ -243,15 +257,18 @@ RSpec.describe "Investment cards", type: :request do
 
       public_card = json_response.fetch("data")
       expect(response).to have_http_status(:ok)
+      expect(public_card.fetch("address_line1")).to eq("123 Private Street")
       expect(public_card).not_to include(
-        "metadata", "status", "visibility", "address_line1", "curated_by_id", "source_name",
+        "metadata", "status", "visibility", "curated_by_id", "source_name",
         "external_reference", "admin_url", "created_at", "updated_at"
       )
       expect(public_card.fetch("documents").first).not_to have_key("admin_url")
       expect(public_card.fetch("documents").first.fetch("public_url")).to include("/documents/")
       expect(public_card.fetch("property_details")).to include("pool" => true, "total_area" => "2,200 SqFt")
       expect(public_card.fetch("property_details")).not_to have_key("internal_inspection_note")
-      expect(public_card).not_to include("business_details", "due_diligence", "financing")
+      expect(public_card.fetch("business_details")).to eq({})
+      expect(public_card.fetch("financing")).to eq({})
+      expect(public_card).not_to include("due_diligence")
     end
 
     it "returns absolute media URLs for a published card" do
@@ -338,28 +355,28 @@ RSpec.describe "Investment cards", type: :request do
     end
   end
 
-  it "serves a complete reviewed translation and falls back when a required field is missing" do
+  it "keeps investment card editorial text in English for every site locale" do
     card = create(
       :investment_card,
       :published,
-      title: "Casa em Orlando",
-      summary: "Resumo em português",
-      description: "Descrição em português",
-      disclaimer: "Aviso informativo",
-      alt_text: "Casa branca em Orlando"
+      title: "Orlando home",
+      summary: "English summary",
+      description: "English description",
+      disclaimer: "Informational notice",
+      alt_text: "White home in Orlando"
     )
     card.update!(metadata: card.metadata.merge(
-      "content_locale" => "pt-BR",
+      "content_locale" => "en",
       "translations" => {
         "en" => {
           "status" => "published",
           "complete" => true,
           "fields" => {
-            "title" => "Orlando home",
-            "summary" => "English summary",
-            "description" => "English description",
-            "disclaimer" => "Informational notice",
-            "alt_text" => "White home in Orlando"
+            "title" => "Casa em Orlando",
+            "summary" => "Resumo em português",
+            "description" => "Descrição em português",
+            "disclaimer" => "Aviso informativo",
+            "alt_text" => "Casa branca em Orlando"
           }
         },
         "es" => {
@@ -379,7 +396,7 @@ RSpec.describe "Investment cards", type: :request do
     get "/api/v1/investment_cards/#{card.slug}?locale=es"
 
     expect(response).to have_http_status(:ok)
-    expect(json_response.dig("data", "title")).to eq("Casa em Orlando")
-    expect(json_response.dig("data", "locale", "fallback_used")).to be(true)
+    expect(json_response.dig("data", "title")).to eq("Orlando home")
+    expect(json_response.dig("data", "locale", "fallback_used")).to be(false)
   end
 end

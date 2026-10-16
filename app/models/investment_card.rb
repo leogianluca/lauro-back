@@ -50,10 +50,15 @@ class InvestmentCard < ApplicationRecord
   validates :card_level, inclusion: { in: 1..3 }
   validates :price_currency, presence: true
   validates :living_area_sqft, :bedrooms, :year_built, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
-  validates :bathrooms, :down_payment_percent, :estimated_roi_min, :estimated_roi_max, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :bathrooms, :estimated_roi_min, :estimated_roi_max, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :gross_yield_percent, :hpi_10_year_percent, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
-  validates :down_payment_cents, :equity_generated_min_cents, :equity_generated_max_cents, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
-  validates :annual_profit_cents, :owner_salary_annual_cents, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :price_cents, :investment_min_cents, :investment_max_cents, :down_payment_cents,
+            :current_income_cents, :projected_income_cents, :noi_current_cents, :noi_projected_cents,
+            :ebitda_annual_cents, :annual_profit_cents, :owner_salary_annual_cents,
+            :equity_generated_min_cents, :equity_generated_max_cents,
+            numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :down_payment_percent, :occupancy_rate, :ebitda_margin, :investor_participation,
+            numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
   validates :owner_time_in_business_years, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validate :published_data_is_complete, if: :published?
   validate :residential_featured_limit

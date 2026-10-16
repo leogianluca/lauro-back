@@ -35,6 +35,42 @@ RSpec.describe "Admin investment cards", type: :request do
       expect(json_response.dig("data", "hpi_10_year_percent").to_f).to eq(42.5)
     end
 
+    it "stores commercial amounts, percentages and technical details from the editor" do
+      editor = create(:user, :editor)
+
+      post "/api/v1/admin/investment_cards",
+        params: { investment_card: attributes_for(:investment_card,
+          category: "commercial", asset_type: "office", strategy: "build_to_rent",
+          price_cents: 1_250_000_000, cap_rate_current: 7.25,
+          property_details: { unit_count: 4, price_per_sqft: 315.5, stabilized_yield_on_cost: 8.125 }) },
+        headers: auth_headers_for(editor)
+
+      expect(response).to have_http_status(:created)
+      card = InvestmentCard.find(json_response.dig("data", "id"))
+      expect(card.price_cents).to eq(1_250_000_000)
+      expect(card.cap_rate_current.to_f).to eq(7.25)
+      expect(card.property_details).to include("unit_count" => 4, "price_per_sqft" => 315.5, "stabilized_yield_on_cost" => 8.125)
+    end
+
+    it "rejects malformed currency and percentage values before saving" do
+      editor = create(:user, :editor)
+      invalid_values = [
+        [ { price_cents: "12.50" }, "price_cents" ],
+        [ { cap_rate_current: "7,25" }, "cap_rate_current" ],
+        [ { property_details: { price_per_sqft: "1,200" } }, "property_details.price_per_sqft" ],
+        [ { business_details: { gross_revenue_cents: "100.25" } }, "business_details.gross_revenue_cents" ]
+      ]
+
+      invalid_values.each do |attributes, field|
+        post "/api/v1/admin/investment_cards",
+          params: { investment_card: attributes_for(:investment_card).merge(attributes) },
+          headers: auth_headers_for(editor)
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(json_response.dig("errors", 0, "field")).to eq(field)
+      end
+    end
+
     it "rejects a viewer" do
       viewer = create(:user, :viewer)
 

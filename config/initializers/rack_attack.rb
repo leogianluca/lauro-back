@@ -19,6 +19,10 @@ class Rack::Attack
     request.ip if request.post? && request.path.start_with?("/api/v1/newsletter_metric_events")
   end
 
+  throttle("public/site_analytics/ip", limit: 90, period: 1.minute) do |request|
+    request.ip if request.post? && request.path == "/api/v1/site_analytics_events"
+  end
+
   self.throttled_responder = lambda do |_request|
     [
       429,

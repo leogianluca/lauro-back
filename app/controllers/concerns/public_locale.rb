@@ -1,11 +1,6 @@
 module PublicLocale
   SUPPORTED_LOCALES = %w[pt-BR en es].freeze
   TRANSLATED_FIELDS = {
-    "InvestmentCard" => %i[
-      title summary description investment_thesis assumptions market_context
-      investment_profile return_strategy expert_curated_reason expert_curated_analysis
-      disclaimer alt_text highlights risks
-    ],
     "ContentPage" => %i[title eyebrow excerpt body content_blocks],
     "MarketReport" => %i[title excerpt body],
     "NewsletterEdition" => %i[title excerpt body cta_label]
@@ -14,9 +9,14 @@ module PublicLocale
     property_style lp_per_sqft can_be_leased new_construction pool minimum_lease_period
     heated_area garage pets total_area garage_spaces special_sale total_acreage subdivision
     subtype subtype_label strategy_badge feature_badge asset_badge term_label
+    unit_count year_renovated zoning ownership area property_class building_count floor_count
+    parking_spaces price_per_sqft net_rentable_area_sqft lease_type ground_lease
+    offering_memorandum rent_bumps lease_expiration remaining_term ceiling_height_ft
+    loading_docks dock_height_ft parking_per_1000_sqft stabilized_yield_on_cost
   ].freeze
   PUBLIC_BUSINESS_DETAIL_FIELDS = %i[
     badge segment strategy_badge feature_badge fact_one fact_two fact_three fact_four visa_program
+    gross_revenue_cents sde_annual_cents
   ].freeze
 
   private
@@ -124,7 +124,7 @@ module PublicLocale
       locale: {
         requested_locale: requested_locale,
         content_locale: content_locale,
-        fallback_used: requested_locale != content_locale
+        fallback_used: !record.is_a?(InvestmentCard) && requested_locale != content_locale
       }
     )
   end

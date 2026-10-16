@@ -3,10 +3,12 @@ module Api
     module Admin
       class DashboardController < BaseController
         def show
-          render_success(data: {
+          return render_error(code: "forbidden", message: "Admin or editor access is required.", status: :forbidden) unless current_user.admin? || current_user.editor?
+
+          data = {
             investment_cards: {
               active: InvestmentCard.kept.count,
-              published: InvestmentCard.kept.published.count,
+              published: InvestmentCard.kept.published.publicly_visible.count,
               drafts: InvestmentCard.kept.draft.count,
               featured: InvestmentCard.kept.featured.count
             },
@@ -37,9 +39,28 @@ module Api
             },
             workflow: {
               media_imports_processing: MediaImportBatch.processing.count,
-              failed_media_items: MediaImportItem.failed.count
+              failed_media_items: MediaImportItem.failed.count,
+              leads_waiting: Lead.kept.new_lead.count,
+              leads_over_24h: Lead.kept.new_lead.where("created_at < ?", 24.hours.ago).count,
+              submissions_waiting: DealSubmission.kept.new_submission.count,
+              submissions_reviewing: DealSubmission.kept.reviewing.count,
+              newsletters_awaiting_approval: NewsletterEdition.kept.awaiting_approval.count,
+              newsletters_with_error: NewsletterEdition.kept.error.count
+            },
+            inventory: {
+              published_by_category: InvestmentCard.kept.published.publicly_visible.group(:category).count,
+              recent_cards: InvestmentCard.kept.order(updated_at: :desc).limit(5).pluck(:id, :title, :category, :status, :updated_at).map do |id, title, category, status, updated_at|
+                { id:, title:, category:, status:, updated_at: }
+              end
             }
-          })
+          }
+          unless current_user.admin?
+            data.delete(:leads)
+            data[:workflow].delete(:leads_waiting)
+            data[:workflow].delete(:leads_over_24h)
+          end
+          data[:traffic] = traffic_snapshot if current_user.admin?
+          render_success(data: data)
         end
 
         private
@@ -58,6 +79,18 @@ module Api
             clicked: clicked,
             open_rate: percentage(opened, delivered),
             click_rate: percentage(clicked, delivered)
+          }
+        end
+
+        def traffic_snapshot
+          since = 30.days.ago
+          views = SiteAnalyticsEvent.where(event_type: "page_view").where("occurred_at >= ?", since)
+          {
+            page_views: views.count,
+            sessions: views.distinct.count(:session_id),
+            top_pages: views.group(:path).order(Arel.sql("COUNT(*) DESC")).limit(4).count.map do |path, count|
+              { path:, count: }
+            end
           }
         end
 

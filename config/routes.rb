@@ -43,12 +43,14 @@ Rails.application.routes.draw do
       resources :newsletter_subscribers, only: [ :create, :destroy ]
       get "newsletter_subscribers/:id/unsubscribe", to: "newsletter_subscribers#unsubscribe"
       resources :newsletter_metric_events, only: :create
+      resources :site_analytics_events, only: :create
       post "newsletter_webhooks/events", to: "newsletter_webhooks#create"
       get "newsletter_tracking/:token/open", to: "newsletter_tracking#open"
       get "newsletter_tracking/:token/click", to: "newsletter_tracking#click"
 
       namespace :admin do
         resource :dashboard, only: :show, controller: :dashboard
+        resource :site_analytics, only: :show, controller: :site_analytics
         resources :investment_cards do
           member do
             patch :publish

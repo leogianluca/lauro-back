@@ -412,6 +412,57 @@ paths:
           description: event accepted
         '401':
           description: invalid signature
+  "/api/v1/site_analytics_events":
+    post:
+      summary: Records a public site visit or internal navigation click
+      tags:
+      - Site Analytics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event]
+              properties:
+                event:
+                  type: object
+                  required: [event_type, path, session_id]
+                  properties:
+                    event_type:
+                      type: string
+                      enum: [page_view, navigation_click]
+                    path:
+                      type: string
+                    target_path:
+                      type: string
+                    session_id:
+                      type: string
+                      format: uuid
+      responses:
+        '204':
+          description: event recorded
+        '422':
+          description: invalid event
+  "/api/v1/admin/site_analytics":
+    get:
+      summary: Returns aggregate public site traffic for administrators
+      tags:
+      - Site Analytics
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          enum: [7, 30, 90]
+      responses:
+        '200':
+          description: traffic report
+        '403':
+          description: admin access required
 components:
   securitySchemes:
     bearerAuth:

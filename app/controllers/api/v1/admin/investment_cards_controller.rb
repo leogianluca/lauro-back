@@ -2,6 +2,23 @@ module Api
   module V1
     module Admin
       class InvestmentCardsController < BaseController
+        MONEY_FIELDS = %w[
+          price_cents investment_min_cents investment_max_cents down_payment_cents
+          current_income_cents projected_income_cents noi_current_cents noi_projected_cents
+          ebitda_annual_cents annual_profit_cents owner_salary_annual_cents
+          equity_generated_min_cents equity_generated_max_cents
+        ].freeze
+        PERCENT_FIELDS = %w[
+          down_payment_percent estimated_roi_min estimated_roi_max cap_rate_current
+          cap_rate_projected cash_on_cash occupancy_rate gross_yield_percent
+          hpi_10_year_percent ebitda_margin investor_participation
+        ].freeze
+        BOUNDED_PERCENT_FIELDS = %w[
+          down_payment_percent occupancy_rate ebitda_margin investor_participation
+        ].freeze
+
+        before_action :validate_numeric_payload!, only: %i[create update]
+
         def index
           cards = InvestmentCards::FilterQuery.new(InvestmentCard.kept, params).call
           pagination, cards = paginate_collection(cards)
@@ -79,6 +96,64 @@ module Api
 
         private
 
+        def validate_numeric_payload!
+          attributes = params[:investment_card]
+          return unless attributes.is_a?(ActionController::Parameters)
+
+          MONEY_FIELDS.each do |field|
+            value = attributes[field]
+            next if value.nil? || value == ""
+            valid = (value.is_a?(Integer) || value.is_a?(String) && value.match?(/\A\d+\z/)) &&
+              value.to_i <= 9_007_199_254_740_991
+            next if valid
+
+            return render_error(code: "invalid_money", field:, message: "Send #{field} as non-negative integer cents.")
+          end
+
+          PERCENT_FIELDS.each do |field|
+            value = attributes[field]
+            next if value.nil? || value == ""
+            valid = (value.is_a?(Numeric) || value.is_a?(String)) &&
+              value.to_s.match?(/\A\d+(?:\.\d{1,3})?\z/) &&
+              (!BOUNDED_PERCENT_FIELDS.include?(field) || BigDecimal(value.to_s) <= 100)
+            next if valid
+
+            return render_error(code: "invalid_percent", field:, message: "Send #{field} as percentage points with at most three decimals.")
+          end
+
+          details = attributes[:property_details]
+          if details.is_a?(ActionController::Parameters)
+            %w[lp_per_sqft price_per_sqft].each do |field|
+              value = details[field]
+              next if value.nil? || value == ""
+              valid = (value.is_a?(Numeric) || value.is_a?(String)) &&
+                value.to_s.match?(/\A\d+(?:\.\d{1,2})?\z/)
+              next if valid
+
+              return render_error(code: "invalid_money", field: "property_details.#{field}", message: "Send the amount per square foot as a plain decimal value.")
+            end
+            yield_on_cost = details[:stabilized_yield_on_cost]
+            if yield_on_cost.present? && !yield_on_cost.to_s.match?(/\A\d+(?:\.\d{1,3})?\z/)
+              return render_error(code: "invalid_percent", field: "property_details.stabilized_yield_on_cost", message: "Send the yield as percentage points with at most three decimals.")
+            end
+          end
+
+          business_details = attributes[:business_details]
+          if business_details.is_a?(ActionController::Parameters)
+            %w[gross_revenue_cents sde_annual_cents].each do |field|
+              value = business_details[field]
+              next if value.nil? || value == ""
+              valid = (value.is_a?(Integer) || value.is_a?(String) && value.match?(/\A\d+\z/)) &&
+                value.to_i <= 9_007_199_254_740_991
+              next if valid
+
+              return render_error(code: "invalid_money", field: "business_details.#{field}", message: "Send #{field} as non-negative integer cents.")
+            end
+          end
+
+          nil
+        end
+
         def card_params
           permitted = params.require(:investment_card).permit(
             :title, :slug, :summary, :description, :category, :asset_type, :strategy,
@@ -110,7 +185,28 @@ module Api
           )
 
           normalize_taxonomy_values!(permitted)
+          normalize_nested_numbers!(permitted)
           permitted
+        end
+
+        def normalize_nested_numbers!(permitted)
+          details = permitted[:property_details]
+          if details.is_a?(ActionController::Parameters)
+            %w[lp_per_sqft price_per_sqft stabilized_yield_on_cost].each do |field|
+              details[field] = details[field].to_f if details[field].present?
+            end
+            %w[unit_count year_renovated building_count floor_count parking_spaces
+              net_rentable_area_sqft ceiling_height_ft loading_docks dock_height_ft].each do |field|
+              details[field] = details[field].to_i if details[field].to_s.match?(/\A\d+\z/)
+            end
+          end
+
+          business_details = permitted[:business_details]
+          return unless business_details.is_a?(ActionController::Parameters)
+
+          %w[gross_revenue_cents sde_annual_cents].each do |field|
+            business_details[field] = business_details[field].to_i if business_details[field].present?
+          end
         end
 
         # The taxonomy is the source of truth. Keeping the legacy text fields in
