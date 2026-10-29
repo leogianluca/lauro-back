@@ -15,8 +15,7 @@ module PublicLocale
     loading_docks dock_height_ft parking_per_1000_sqft stabilized_yield_on_cost
   ].freeze
   PUBLIC_BUSINESS_DETAIL_FIELDS = %i[
-    badge segment strategy_badge feature_badge fact_one fact_two fact_three fact_four visa_program
-    gross_revenue_cents sde_annual_cents
+    badge segment strategy_badge visa_program time_in_business sde_annual_cents
   ].freeze
 
   private
@@ -57,6 +56,12 @@ module PublicLocale
       :due_diligence
     )
     if record.is_a?(InvestmentCard)
+      if %w[business empresa empresas].include?(record.category.to_s.downcase)
+        safe_payload = safe_payload.except(
+          :owner_salary_annual_cents, :annual_profit_cents, :ebitda_annual_cents,
+          :ebitda_margin, :operating_model, :investor_participation
+        )
+      end
       unless record.market_status == "off_market"
         safe_payload = safe_payload.merge(payload.deep_symbolize_keys.slice(:address_line1, :address_line2, :zip_code))
       end

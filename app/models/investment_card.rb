@@ -45,9 +45,10 @@ class InvestmentCard < ApplicationRecord
 
   before_validation :set_published_at, if: :published?
 
-  validates :title, :status, :visibility, :card_level, :category, :strategy, :city, :state, presence: true
+  validates :title, :status, :visibility, :card_level, :category, :strategy, presence: true
+  validate :location_is_present
   validates :slug, uniqueness: true
-  validates :card_level, inclusion: { in: 1..3 }
+  validates :card_level, inclusion: { in: 1..2 }
   validates :price_currency, presence: true
   validates :living_area_sqft, :bedrooms, :year_built, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   validates :bathrooms, :estimated_roi_min, :estimated_roi_max, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
@@ -121,20 +122,28 @@ class InvestmentCard < ApplicationRecord
 
   private
 
+  def location_is_present
+    if %w[empresa empresas business].include?(category.to_s.downcase)
+      errors.add(:region, "or city and state is required") if region.blank? && (city.blank? || state.blank?)
+    else
+      errors.add(:city, "is required") if city.blank?
+      errors.add(:state, "is required") if state.blank?
+    end
+  end
+
   def set_published_at
     self.published_at ||= Time.current
   end
 
   def published_data_is_complete
-    errors.add(:summary, "is required before publication") if summary.blank?
+    business_card = %w[empresa empresas business].include?(category.to_s.downcase)
+    errors.add(:summary, "is required before publication") if summary.blank? && !business_card
     errors.add(:price_cents, "must be greater than zero before publication") if price_cents.blank? || price_cents <= 0
-    errors.add(:alt_text, "is required before publication") if alt_text.blank?
-    errors.add(:disclaimer, "is required before publication") if disclaimer.blank?
+    errors.add(:alt_text, "is required before publication") if alt_text.blank? && !business_card
+    errors.add(:disclaimer, "is required before publication") if disclaimer.blank? && !business_card
     errors.add(:cover_image, "is required before publication") unless cover_image.attached?
-    if %w[empresa empresas business].include?(category.to_s.downcase)
+    if business_card
       errors.add(:sector, "is required for business cards") if sector.blank?
-      errors.add(:operating_model, "is required for business cards") if operating_model.blank?
-      errors.add(:ebitda_annual_cents, "is required for business cards") if ebitda_annual_cents.blank?
     end
     if %w[build_to_sell build_to_rent development].include?(strategy.to_s.downcase)
       errors.add(:estimated_months, "is required for development strategies") if estimated_months.blank?
@@ -162,7 +171,11 @@ class InvestmentCard < ApplicationRecord
       end
     end
     if business_level_two?
-      errors.add(:annual_profit_cents, "is required for business level 2 cards") if annual_profit_cents.blank?
+      sde = business_details.is_a?(Hash) && business_details["sde_annual_cents"]
+      errors.add(:business_details, "must include adjusted profit (SDE) for business level 2 cards") unless sde.is_a?(Integer) && sde >= 0
+      if business_details.is_a?(Hash) && (business_details["segment"].blank? || business_details["segment"] == "other") && business_details["strategy_badge"].blank?
+        errors.add(:business_details, "must include a business subtype")
+      end
       errors.add(:sector, "is required for business level 2 cards") if sector.blank?
       errors.add(:owner_involvement, "is required for business level 2 cards") if owner_involvement.blank?
     end

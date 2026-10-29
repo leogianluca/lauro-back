@@ -4,7 +4,7 @@ RSpec.describe InvestmentCard, type: :model do
   subject(:investment_card) { build(:investment_card) }
 
   it { is_expected.to validate_presence_of(:title) }
-  it { is_expected.to validate_inclusion_of(:card_level).in_range(1..3) }
+  it { is_expected.to validate_inclusion_of(:card_level).in_range(1..2) }
 
   it "supports optional broker, company and location relationships" do
     card = create(

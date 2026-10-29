@@ -78,7 +78,7 @@ if Rails.env.development?
                           "special_sale" => "None", "total_acreage" => 0.23, "subdivision" => "Orlando" },
       highlights: [ "Localização com alta demanda de locação", "Quatro unidades com renda recorrente", "Potencial de aumento de receita" ],
       risks: [ "Execução das melhorias dentro do orçamento", "Variação de taxas de juros" ],
-      card_level: 3, expert_curated: true
+      card_level: 2, expert_curated: true
     },
     {
       slug: "single-family-rental-tampa-demo",
