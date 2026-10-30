@@ -190,6 +190,14 @@ module Api
         end
 
         def normalize_nested_numbers!(permitted)
+          financing = permitted[:financing]
+          if financing.is_a?(ActionController::Parameters)
+            %w[down_payment_cents term_years].each do |field|
+              financing[field] = financing[field].to_i if financing[field].is_a?(String) && financing[field].match?(/\A\d+\z/)
+            end
+            rate = financing[:interest_rate_percent]
+            financing[:interest_rate_percent] = rate.to_f if rate.is_a?(String) && rate.match?(/\A\d+(?:\.\d{1,3})?\z/)
+          end
           details = permitted[:property_details]
           if details.is_a?(ActionController::Parameters)
             %w[lp_per_sqft price_per_sqft stabilized_yield_on_cost].each do |field|

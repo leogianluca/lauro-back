@@ -69,7 +69,9 @@ module PublicLocale
         safe_payload[:business_details] = safe_payload[:business_details].slice(*PUBLIC_BUSINESS_DETAIL_FIELDS)
       end
       if safe_payload[:financing].is_a?(Hash)
-        safe_payload[:financing] = safe_payload[:financing].slice(:type)
+        financing_fields = %w[commercial comercial].include?(record.category.to_s.downcase) ?
+          %i[type ltv term_years interest_rate_percent down_payment_cents] : %i[type]
+        safe_payload[:financing] = safe_payload[:financing].slice(*financing_fields)
       end
     else
       safe_payload = safe_payload.except(:business_details, :financing)

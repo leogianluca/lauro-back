@@ -62,6 +62,7 @@ class InvestmentCard < ApplicationRecord
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
   validates :owner_time_in_business_years, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validate :published_data_is_complete, if: :published?
+  validate :financing_simulation_is_valid
   validate :residential_featured_limit
   validate :structured_metadata_has_expected_shape
   validate :taxonomy_terms_match_expected_kinds
@@ -121,6 +122,23 @@ class InvestmentCard < ApplicationRecord
   end
 
   private
+
+  def financing_simulation_is_valid
+    return unless %w[commercial comercial].include?(category.to_s.downcase) && financing.is_a?(Hash)
+
+    rate = financing["interest_rate_percent"]
+    term = financing["term_years"]
+    down = financing["down_payment_cents"]
+    if !rate.nil? && rate != "" && !(rate.is_a?(Numeric) && rate.finite? && rate.between?(0, 100))
+      errors.add(:financing, "annual interest must be between 0 and 100 percent")
+    end
+    if !term.nil? && term != "" && !(term.is_a?(Integer) && term.between?(1, 50))
+      errors.add(:financing, "amortization term must be a whole number from 1 to 50 years")
+    end
+    if !down.nil? && down != "" && !(down.is_a?(Integer) && down.between?(0, 9_007_199_254_740_991) && (price_cents.nil? || down <= price_cents))
+      errors.add(:financing, "down payment must be integer cents between zero and the price")
+    end
+  end
 
   def location_is_present
     if %w[empresa empresas business].include?(category.to_s.downcase)
