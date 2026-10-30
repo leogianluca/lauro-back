@@ -143,6 +143,8 @@ class InvestmentCard < ApplicationRecord
   def location_is_present
     if %w[empresa empresas business].include?(category.to_s.downcase)
       errors.add(:region, "or city and state is required") if region.blank? && (city.blank? || state.blank?)
+    elsif %w[commercial comercial].include?(category.to_s.downcase)
+      errors.add(:address_line1, "is required") if address_line1.blank? && (city.blank? || state.blank?)
     else
       errors.add(:city, "is required") if city.blank?
       errors.add(:state, "is required") if state.blank?
@@ -155,18 +157,20 @@ class InvestmentCard < ApplicationRecord
 
   def published_data_is_complete
     business_card = %w[empresa empresas business].include?(category.to_s.downcase)
-    errors.add(:summary, "is required before publication") if summary.blank? && !business_card
+    commercial_card = %w[commercial comercial].include?(category.to_s.downcase)
+    simplified_card = business_card || commercial_card
+    errors.add(:summary, "is required before publication") if summary.blank? && !simplified_card
     errors.add(:price_cents, "must be greater than zero before publication") if price_cents.blank? || price_cents <= 0
-    errors.add(:alt_text, "is required before publication") if alt_text.blank? && !business_card
-    errors.add(:disclaimer, "is required before publication") if disclaimer.blank? && !business_card
+    errors.add(:alt_text, "is required before publication") if alt_text.blank? && !simplified_card
+    errors.add(:disclaimer, "is required before publication") if disclaimer.blank? && !simplified_card
     errors.add(:cover_image, "is required before publication") unless cover_image.attached?
     if business_card
       errors.add(:sector, "is required for business cards") if sector.blank?
     end
-    if %w[build_to_sell build_to_rent development].include?(strategy.to_s.downcase)
+    if !commercial_card && %w[build_to_sell build_to_rent development].include?(strategy.to_s.downcase)
       errors.add(:estimated_months, "is required for development strategies") if estimated_months.blank?
     end
-    if expert_curated?
+    if expert_curated? && !commercial_card
       errors.add(:curated_by_id, "is required for Expert Curated cards") if curated_by_id.blank?
       errors.add(:source_name, "is required for Expert Curated cards") if source_name.blank?
       errors.add(:verified_at, "is required for Expert Curated cards") if verified_at.blank?

@@ -6,7 +6,7 @@ module PublicLocale
     "NewsletterEdition" => %i[title excerpt body cta_label]
   }.freeze
   PUBLIC_PROPERTY_DETAIL_FIELDS = %i[
-    property_style lp_per_sqft can_be_leased new_construction pool minimum_lease_period
+    address_is_full property_style lp_per_sqft can_be_leased new_construction pool minimum_lease_period
     heated_area garage pets total_area garage_spaces special_sale total_acreage subdivision
     subtype subtype_label strategy_badge feature_badge asset_badge term_label
     unit_count year_renovated zoning ownership area property_class building_count floor_count
