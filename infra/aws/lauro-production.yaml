@@ -4,6 +4,10 @@ Description: >-
   Rails host managed through Systems Manager, private S3 origins, and CloudFront.
 
 Parameters:
+  StaticDiscoveryFunctionName:
+    Type: String
+    Default: lauro-static-discovery
+    Description: CloudFront viewer-request function published by the frontend release before stack deployment.
   ImageTag:
     Type: String
     Description: Immutable ECR tag for the Rails image to deploy.
@@ -386,6 +390,9 @@ Resources:
           CachedMethods: [GET, HEAD, OPTIONS]
           Compress: true
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:function/${StaticDiscoveryFunctionName}
         CacheBehaviors:
           - PathPattern: /api/*
             TargetOriginId: RailsApiOrigin
