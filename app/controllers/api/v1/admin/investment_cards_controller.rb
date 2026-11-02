@@ -140,7 +140,7 @@ module Api
 
           business_details = attributes[:business_details]
           if business_details.is_a?(ActionController::Parameters)
-            %w[gross_revenue_cents sde_annual_cents].each do |field|
+            %w[gross_revenue_cents sde_annual_cents cash_flow_cents].each do |field|
               value = business_details[field]
               next if value.nil? || value == ""
               valid = (value.is_a?(Integer) || value.is_a?(String) && value.match?(/\A\d+\z/)) &&
@@ -212,7 +212,7 @@ module Api
           business_details = permitted[:business_details]
           return unless business_details.is_a?(ActionController::Parameters)
 
-          %w[gross_revenue_cents sde_annual_cents].each do |field|
+          %w[gross_revenue_cents sde_annual_cents cash_flow_cents].each do |field|
             business_details[field] = business_details[field].to_i if business_details[field].present?
           end
         end

@@ -15,7 +15,7 @@ module PublicLocale
     loading_docks dock_height_ft parking_per_1000_sqft stabilized_yield_on_cost
   ].freeze
   PUBLIC_BUSINESS_DETAIL_FIELDS = %i[
-    badge segment strategy_badge visa_program time_in_business sde_annual_cents
+    badge segment strategy_badge visa_program time_in_business sde_annual_cents business_type cash_flow_cents
   ].freeze
 
   private

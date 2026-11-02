@@ -62,6 +62,7 @@ class InvestmentCard < ApplicationRecord
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
   validates :owner_time_in_business_years, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validate :published_data_is_complete, if: :published?
+  validate :business_cash_flow_is_valid
   validate :financing_simulation_is_valid
   validate :residential_featured_limit
   validate :structured_metadata_has_expected_shape
@@ -123,6 +124,15 @@ class InvestmentCard < ApplicationRecord
 
   private
 
+  def business_cash_flow_is_valid
+    return unless business_details.is_a?(Hash) && business_details.key?("cash_flow_cents")
+
+    amount = business_details["cash_flow_cents"]
+    return if amount.nil? || amount == ""
+
+    errors.add(:business_details, "cash flow must be non-negative integer cents") unless amount.is_a?(Integer) && amount.between?(0, 9_007_199_254_740_991)
+  end
+
   def financing_simulation_is_valid
     return unless %w[commercial comercial].include?(category.to_s.downcase) && financing.is_a?(Hash)
 
@@ -164,9 +174,6 @@ class InvestmentCard < ApplicationRecord
     errors.add(:alt_text, "is required before publication") if alt_text.blank? && !simplified_card
     errors.add(:disclaimer, "is required before publication") if disclaimer.blank? && !simplified_card
     errors.add(:cover_image, "is required before publication") unless cover_image.attached?
-    if business_card
-      errors.add(:sector, "is required for business cards") if sector.blank?
-    end
     if !commercial_card && %w[build_to_sell build_to_rent development].include?(strategy.to_s.downcase)
       errors.add(:estimated_months, "is required for development strategies") if estimated_months.blank?
     end
@@ -193,12 +200,12 @@ class InvestmentCard < ApplicationRecord
       end
     end
     if business_level_two?
-      sde = business_details.is_a?(Hash) && business_details["sde_annual_cents"]
-      errors.add(:business_details, "must include adjusted profit (SDE) for business level 2 cards") unless sde.is_a?(Integer) && sde >= 0
-      if business_details.is_a?(Hash) && (business_details["segment"].blank? || business_details["segment"] == "other") && business_details["strategy_badge"].blank?
-        errors.add(:business_details, "must include a business subtype")
-      end
-      errors.add(:sector, "is required for business level 2 cards") if sector.blank?
+      details = business_details.is_a?(Hash) ? business_details : {}
+      # Existing SDE records remain publishable; a new cash flow is an independently entered value.
+      cash_flow = details.key?("cash_flow_cents") ? details["cash_flow_cents"] : details["sde_annual_cents"]
+      errors.add(:business_details, "must include cash flow for business level 2 cards") unless cash_flow.is_a?(Integer) && cash_flow.between?(0, 9_007_199_254_740_991)
+      business_type = details["business_type"].presence || details["strategy_badge"].presence || details["segment"].presence || sector.presence
+      errors.add(:business_details, "must include a business type") if business_type.blank?
       errors.add(:owner_involvement, "is required for business level 2 cards") if owner_involvement.blank?
     end
   end

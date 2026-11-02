@@ -4,6 +4,8 @@ class Lead < ApplicationRecord
   belongs_to :assigned_to, class_name: "User", optional: true
   belongs_to :investment_card, optional: true
 
+  after_create_commit :notify_interest
+
   enum :status, {
     new_lead: "new",
     contacted: "contacted",
@@ -19,6 +21,12 @@ class Lead < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
 
   private
+
+  def notify_interest
+    return unless source == "deal_interest" && investment_card_id.present? && LeadNotificationMailer.recipient
+
+    LeadNotificationMailer.with(lead: self).interest.deliver_later
+  end
 
   def phone_has_valid_format
     return if phone.blank?

@@ -2,7 +2,7 @@ class InvestmentCardBlueprint < Blueprinter::Base
   identifier :id
 
   view :card do
-    fields :title, :slug, :summary, :category, :asset_type, :strategy, :city,
+    fields :title, :slug, :summary, :description, :category, :asset_type, :strategy, :city,
            :state, :region, :country, :status, :visibility, :card_level, :featured,
            :expert_curated, :price_cents, :price_currency,
            :investment_min_cents, :investment_max_cents, :address_line1, :address_line2,
@@ -50,7 +50,7 @@ class InvestmentCardBlueprint < Blueprinter::Base
   view :detail do
     include_view :card
 
-    fields :description, :source_url, :external_reference, :metadata,
+    fields :source_url, :external_reference, :metadata,
            :published_at, :created_at, :updated_at, :cover_image_attached,
            :gallery_images_count, :documents_count
     field :metrics do |card|
