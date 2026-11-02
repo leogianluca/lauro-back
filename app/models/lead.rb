@@ -23,6 +23,7 @@ class Lead < ApplicationRecord
   private
 
   def notify_interest
+    return unless ActiveModel::Type::Boolean.new.cast(ENV.fetch("LEAD_INTEREST_EMAIL_ENABLED", "false"))
     return unless source == "deal_interest" && investment_card_id.present? && LeadNotificationMailer.recipient
 
     LeadNotificationMailer.with(lead: self).interest.deliver_later
